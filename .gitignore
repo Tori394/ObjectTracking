@@ -24,6 +24,7 @@ bin/
 
 ### VS Code ###
 .vscode/
+Lab5.iml
 
 ### Mac OS ###
 .DS_Store
