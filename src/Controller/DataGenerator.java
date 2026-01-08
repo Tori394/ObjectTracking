@@ -21,7 +21,7 @@ public class DataGenerator {
 
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                int noise = random.nextInt(256);
+                int noise = random.nextInt(180);
                 map.setPixel(x, y, noise);
             }
         }

@@ -2,6 +2,7 @@ package View;
 import Controller.DataGenerator;
 import Model.RadarBlob;
 import Model.RadarNoise;
+import Model.CCL;
 
 import javax.swing.*;
 import java.awt.*;
@@ -21,6 +22,8 @@ public class TrackingView {
     private RadarView radarCanvas;
     private DataGenerator generator;
 
+    private RadarNoise LastMap;
+
     public TrackingView() {
         generator = new DataGenerator(800, 560);
 
@@ -29,9 +32,7 @@ public class TrackingView {
         radarCanvas = new RadarView();
         radarPanel.add(radarCanvas, BorderLayout.CENTER);
 
-        generujButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
+        generujButton.addActionListener(e -> {
                 List<RadarBlob> objects = new ArrayList<>();
                 Random rand = new Random();
 
@@ -39,15 +40,22 @@ public class TrackingView {
 
                     double x = rand.nextInt(800);
                     double y = rand.nextInt(560);
-                    double z = rand.nextInt(3)+2;
+                    double z = rand.nextInt(5)+2;
 
                     objects.add(new RadarBlob(x, y,z));
                 }
 
-                RadarNoise mapa = generator.generateRadar(objects);
-                radarCanvas.updateMap(mapa);
-            }
+                RadarNoise map = generator.generateRadar(objects);
+                LastMap = map;
+                radarCanvas.updateMap(map);
         });
+
+        otsuButton.addActionListener( e-> {
+            int tresh = CCL.OtsuTreshold(LastMap);
+            RadarNoise map = CCL.applyThreshold(LastMap, tresh);
+            radarCanvas.updateMap(map);
+        });
+
     }
 
     public static void main(String[] args) {
