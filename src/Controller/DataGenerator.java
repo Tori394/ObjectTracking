@@ -1,6 +1,6 @@
 package Controller;
 
-import Model.RadarNoise;
+import Model.RadarImage;
 import Model.RadarBlob;
 
 import java.util.List;
@@ -16,8 +16,8 @@ public class DataGenerator {
         this.height = height;
     }
 
-    public RadarNoise generateRadar(List<RadarBlob> blobs) {
-        RadarNoise map = new RadarNoise(width, height);
+    public RadarImage generateRadar(List<RadarBlob> blobs) {
+        RadarImage map = new RadarImage(width, height);
 
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
@@ -33,7 +33,7 @@ public class DataGenerator {
         return map;
     }
 
-    private void drawBlob(RadarNoise map, RadarBlob obj) {
+    private void drawBlob(RadarImage map, RadarBlob obj) {
         int range = (int) (obj.size * 3);
 
         int startX = Math.max(0, (int) (obj.x - range));

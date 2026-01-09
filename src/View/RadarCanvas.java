@@ -1,16 +1,16 @@
 package View;
 
-import Model.RadarNoise;
+import Model.RadarImage;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class RadarCanvas extends JPanel {
-    private RadarNoise currentMap;
+    private RadarImage currentMap;
     private boolean overlayState;
     private BlobOverlay overlay;
 
-    public void updateMap(RadarNoise newMap, boolean checkbox) {
+    public void updateMap(RadarImage newMap, boolean checkbox) {
         overlayState = checkbox;
         this.currentMap = newMap;
         this.revalidate();

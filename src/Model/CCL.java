@@ -11,7 +11,7 @@ public class CCL{
     // Struktura przechowywania relacji
     private static List<Integer> neighbourEquivalenceTable = new ArrayList<>();
 
-    public static List<DetectedObject> extract(RadarNoise binaryMap) {
+    public static List<DetectedObject> extract(RadarImage binaryMap) {
         int width = binaryMap.getWidth();
         int height = binaryMap.getHeight();
         int[][] labels = new int[width][height]; // Mapa etykiet
@@ -105,7 +105,7 @@ public class CCL{
         List<DetectedObject> results = new ArrayList<>();
 
         for (List<Point> pixels : groupedPixels.values()) {
-            if (pixels.size() < 10) continue;
+            if (pixels.size() < 20) continue;
 
             // Średnia arytmetyczna (mu)
             double sumX = 0, sumY = 0;

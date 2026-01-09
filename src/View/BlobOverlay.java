@@ -35,16 +35,19 @@ public class BlobOverlay implements RadarOverlay {
 
         for (DetectedObject blob : blobs) {
 
-            g.setColor(PALETA[labelId]);
+            Color c = (PALETA[labelId]);
 
-            for (Point p : blob.getPixels()) {
-                g.fillRect(p.x, p.y, 1, 1);
-            }
-
-            g.setColor(Color.red);
-
+            // Środek ciężkości
             int cx = (int) blob.getX();
             int cy = (int) blob.getY();
+
+            int radiusX = (int) (blob.stdDevX * 3.0);
+            int radiusY = (int) (blob.stdDevY * 3.0);
+
+            g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 170));
+            g.fillOval(cx - radiusX, cy - radiusY, radiusX * 2, radiusY * 2);
+
+            g.setColor(Color.red);
 
             g.drawOval(cx, cy, 2, 2);
 

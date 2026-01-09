@@ -1,11 +1,11 @@
 package Model;
 
-public class RadarNoise {
+public class RadarImage {
     private final int width;
     private final int height;
     private final int[][] pixels;
 
-    public RadarNoise(int width, int height) {
+    public RadarImage(int width, int height) {
         this.width = width;
         this.height = height;
         this.pixels = new int[width][height];

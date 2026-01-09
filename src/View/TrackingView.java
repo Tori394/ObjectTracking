@@ -3,7 +3,7 @@ package View;
 import Controller.DataGenerator;
 import Model.CCL;
 import Model.RadarBlob;
-import Model.RadarNoise;
+import Model.RadarImage;
 import Model.Otsu;
 
 import javax.swing.*;
@@ -21,12 +21,15 @@ public class TrackingView {
     private JRadioButton radarView;
     private JPanel radioPanel;
     private JCheckBox showBlobsCheckBox;
+    private JButton generateSimulationButton;
+    private JPanel generatingPanel;
 
     private RadarCanvas radarCanvas;
     private DataGenerator generator;
 
-    private RadarNoise LastMap;
-    private RadarNoise OtsuMap;
+    private RadarImage LastMap;
+    private RadarImage OtsuMap;
+    private RadarImage CurrentMap;
 
     public TrackingView() {
         generator = new DataGenerator(800, 560);
@@ -56,16 +59,16 @@ public class TrackingView {
                     objects.add(new RadarBlob(x, y,z));
                 }
 
-                RadarNoise map = generator.generateRadar(objects);
+                RadarImage map = generator.generateRadar(objects);
                 LastMap = map;
+                CurrentMap = map;
 
                 OtsuMap = Otsu.applyThreshold(map, Otsu.OtsuTreshold(map));
 
                 radarCanvas.addOverlay(new BlobOverlay(CCL.extract(OtsuMap)));
 
-                radarCanvas.updateMap(map, false);
+                radarCanvas.updateMap(map, showBlobsCheckBox.isSelected());
 
-                showBlobsCheckBox.setSelected(false);
                 showBlobsCheckBox.setEnabled(true);
                 otsuView.setEnabled(true);
                 otsuView.setSelected(false);
@@ -74,11 +77,17 @@ public class TrackingView {
         });
 
         otsuView.addActionListener( e-> {
-            radarCanvas.updateMap(OtsuMap, showBlobsCheckBox.isSelected());
+            CurrentMap = OtsuMap;
+            radarCanvas.updateMap(CurrentMap, showBlobsCheckBox.isSelected());
         });
 
         radarView.addActionListener( e-> {
-            radarCanvas.updateMap(LastMap, showBlobsCheckBox.isSelected());
+            CurrentMap = LastMap;
+            radarCanvas.updateMap(CurrentMap, showBlobsCheckBox.isSelected());
+        });
+
+        showBlobsCheckBox.addActionListener( e -> {
+            radarCanvas.updateMap(CurrentMap, showBlobsCheckBox.isSelected());
         });
 
     }

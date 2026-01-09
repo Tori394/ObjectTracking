@@ -2,7 +2,7 @@ package Model;
 
 public class Otsu {
 
-    public static int OtsuTreshold(RadarNoise map) {
+    public static int OtsuTreshold(RadarImage map) {
         int[] histogram = new int[256];
         int width = map.getWidth();
         int height = map.getHeight();
@@ -53,10 +53,10 @@ public class Otsu {
         return (int) Math.round((bestThreshold) * 2.1);
     }
 
-    public static RadarNoise applyThreshold(RadarNoise inputMap, int threshold) {
+    public static RadarImage applyThreshold(RadarImage inputMap, int threshold) {
         int width = inputMap.getWidth();
         int height = inputMap.getHeight();
-        RadarNoise binaryMap = new RadarNoise(width, height);
+        RadarImage binaryMap = new RadarImage(width, height);
 
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
