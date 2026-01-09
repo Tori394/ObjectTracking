@@ -5,12 +5,24 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
-public class RadarView extends JPanel {
+public class RadarCanvas extends JPanel {
     private RadarNoise currentMap;
+    private boolean overlayState;
+    private BlobOverlay overlay;
 
-    public void updateMap(RadarNoise newMap) {
+    public void updateMap(RadarNoise newMap, boolean checkbox) {
+        overlayState = checkbox;
         this.currentMap = newMap;
+        this.revalidate();
         this.repaint();
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        if (currentMap != null) {
+            return new Dimension(currentMap.getWidth(), currentMap.getHeight());
+        }
+        return new Dimension(800, 560); // Domyślny rozmiar
     }
 
     @Override
@@ -35,6 +47,16 @@ public class RadarView extends JPanel {
             }
         }
 
-        g.drawImage(image, 0, 0, getWidth(), getHeight(), null);
+        g.drawImage(image, 0, 0, this);
+
+        if (overlayState && overlay != null) {
+            Graphics2D g2d = (Graphics2D) g;
+            overlay.paintOverlay(g2d);
+        }
     }
+
+    public void addOverlay(BlobOverlay o) {
+        overlay = o;
+    }
+
 }

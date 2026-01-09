@@ -1,13 +1,13 @@
 package View;
+
 import Controller.DataGenerator;
+import Model.CCL;
 import Model.RadarBlob;
 import Model.RadarNoise;
-import Model.CCL;
+import Model.Otsu;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -15,21 +15,32 @@ import java.util.Random;
 public class TrackingView {
     private JPanel mainPanel;
     private JButton generujButton;
-    private JButton otsuButton;
     private JPanel radarPanel;
     private JPanel buttonsPanel;
+    private JRadioButton otsuView;
+    private JRadioButton radarView;
+    private JPanel radioPanel;
+    private JCheckBox showBlobsCheckBox;
 
-    private RadarView radarCanvas;
+    private RadarCanvas radarCanvas;
     private DataGenerator generator;
 
     private RadarNoise LastMap;
+    private RadarNoise OtsuMap;
 
     public TrackingView() {
         generator = new DataGenerator(800, 560);
 
         radarPanel.setLayout(new BorderLayout());
 
-        radarCanvas = new RadarView();
+        ButtonGroup group = new ButtonGroup();
+        group.add(otsuView);
+        group.add(radarView);
+        otsuView.setEnabled(false);
+        radarView.setEnabled(false);
+        showBlobsCheckBox.setEnabled(false);
+
+        radarCanvas = new RadarCanvas();
         radarPanel.add(radarCanvas, BorderLayout.CENTER);
 
         generujButton.addActionListener(e -> {
@@ -40,20 +51,34 @@ public class TrackingView {
 
                     double x = rand.nextInt(800);
                     double y = rand.nextInt(560);
-                    double z = rand.nextInt(5)+2;
+                    double z = rand.nextInt(6)+4;
 
                     objects.add(new RadarBlob(x, y,z));
                 }
 
                 RadarNoise map = generator.generateRadar(objects);
                 LastMap = map;
-                radarCanvas.updateMap(map);
+
+                OtsuMap = Otsu.applyThreshold(map, Otsu.OtsuTreshold(map));
+
+                radarCanvas.addOverlay(new BlobOverlay(CCL.extract(OtsuMap)));
+
+                radarCanvas.updateMap(map, false);
+
+                showBlobsCheckBox.setSelected(false);
+                showBlobsCheckBox.setEnabled(true);
+                otsuView.setEnabled(true);
+                otsuView.setSelected(false);
+                radarView.setEnabled(true);
+                radarView.setSelected(true);
         });
 
-        otsuButton.addActionListener( e-> {
-            int tresh = CCL.OtsuTreshold(LastMap);
-            RadarNoise map = CCL.applyThreshold(LastMap, tresh);
-            radarCanvas.updateMap(map);
+        otsuView.addActionListener( e-> {
+            radarCanvas.updateMap(OtsuMap, showBlobsCheckBox.isSelected());
+        });
+
+        radarView.addActionListener( e-> {
+            radarCanvas.updateMap(LastMap, showBlobsCheckBox.isSelected());
         });
 
     }
