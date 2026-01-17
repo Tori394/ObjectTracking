@@ -34,22 +34,22 @@ public class DataGenerator {
     }
 
     private void drawBlob(RadarImage map, RadarBlob obj) {
-        int range = (int) (obj.size * 3);
+        int range = (int) (obj.getSize() * 3);
 
-        int startX = Math.max(0, (int) (obj.x - range));
-        int endX = Math.min(width - 1, (int) (obj.x + range));
-        int startY = Math.max(0, (int) (obj.y - range));
-        int endY = Math.min(height - 1, (int) (obj.y + range));
+        int startX = Math.max(0, (int) (obj.getX() - range));
+        int endX = Math.min(width - 1, (int) (obj.getX() + range));
+        int startY = Math.max(0, (int) (obj.getY() - range));
+        int endY = Math.min(height - 1, (int) (obj.getY() + range));
 
         for (int x = startX; x <= endX; x++) {
             for (int y = startY; y <= endY; y++) {
 
                 // Liczymy odległość punktu od środka obiektu
-                double distanceSq = Math.pow(x - obj.x, 2) + Math.pow(y - obj.y, 2);
+                double distanceSq = Math.pow(x - obj.getX(), 2) + Math.pow(y - obj.getY(), 2);
 
                 // Wzór na krzywą Gaussa
-                double exponent = -distanceSq / (2 * Math.pow(obj.size, 2));
-                double signal = obj.brightness * Math.exp(exponent);
+                double exponent = -distanceSq / (2 * Math.pow(obj.getSize(), 2));
+                double signal = obj.getBrightness() * Math.exp(exponent);
 
                 // Dodajemy bloba do szumu
                 int oldPixel = map.getPixel(x, y);

@@ -4,14 +4,15 @@ import Model.RadarImage;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.List;
 
 public class RadarCanvas extends JPanel {
     private RadarImage currentMap;
-    private boolean overlayState;
-    private BlobOverlay overlay;
 
-    public void updateMap(RadarImage newMap, boolean checkbox) {
-        overlayState = checkbox;
+    private final List<RadarOverlay> overlays = new ArrayList<>();
+
+    public void updateMap(RadarImage newMap) {
         this.currentMap = newMap;
         this.revalidate();
         this.repaint();
@@ -22,7 +23,7 @@ public class RadarCanvas extends JPanel {
         if (currentMap != null) {
             return new Dimension(currentMap.getWidth(), currentMap.getHeight());
         }
-        return new Dimension(800, 560); // Domyślny rozmiar
+        return new Dimension(TrackingView.W, TrackingView.H);
     }
 
     @Override
@@ -39,24 +40,33 @@ public class RadarCanvas extends JPanel {
         for (int x = 0; x < w; x++) {
             for (int y = 0; y < h; y++) {
                 int brightness = currentMap.getPixel(x, y);
+                // Zabezpieczenie zakresu 0-255
+                brightness = Math.max(0, Math.min(255, brightness));
 
                 Color c = new Color(brightness, brightness, brightness);
-                int color = c.getRGB();
-
-                image.setRGB(x, y, color);
+                image.setRGB(x, y, c.getRGB());
             }
         }
 
         g.drawImage(image, 0, 0, this);
 
-        if (overlayState && overlay != null) {
-            Graphics2D g2d = (Graphics2D) g;
+        Graphics2D g2d = (Graphics2D) g;
+
+        List<RadarOverlay> toDraw = new ArrayList<>(overlays);
+
+        for (RadarOverlay overlay : toDraw) {
             overlay.paintOverlay(g2d);
         }
     }
 
-    public void addOverlay(BlobOverlay o) {
-        overlay = o;
+    public void addOverlay(RadarOverlay o) {
+        overlays.add(o);
+        repaint();
+    }
+
+    public void clearOverlays() {
+        overlays.clear();
+        repaint();
     }
 
 }

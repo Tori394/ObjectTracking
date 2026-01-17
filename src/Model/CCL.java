@@ -6,122 +6,87 @@ import java.util.List;
 import java.util.Map;
 import java.awt.Point;
 
-public class CCL{
+public class CCL {
 
-    // Struktura przechowywania relacji
     private static List<Integer> neighbourEquivalenceTable = new ArrayList<>();
 
-    public static List<DetectedObject> extract(RadarImage binaryMap) {
+    public static List<DetectedObject> extract(RadarImage binaryMap, RadarImage rawMap) {
         int width = binaryMap.getWidth();
         int height = binaryMap.getHeight();
-        int[][] labels = new int[width][height]; // Mapa etykiet
+        int[][] labels = new int[width][height];
 
-        // Resetujemy tabelę równoważności (0 to tło)
         neighbourEquivalenceTable.clear();
         neighbourEquivalenceTable.add(0);
 
-        // =========================================================================
-        // PIERWSZE PRZEJŚCIE
-        // Nadawanie etykiet tymczasowych i rejestrowanie konfliktów
-        // =========================================================================
+        // ETAP ETYKIETOWANIA
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
+                if (binaryMap.getPixel(x, y) == 0) continue;
 
-                if (binaryMap.getPixel(x, y) == 0) continue; // jak tło to pomiń
-
-                List<Integer> neighbors = new ArrayList<>(); // jak kawałek bloba to sprawdź sąsiadów
-
-                // Sprawdzamy sąsiadów już odwiedzonych więc z góry i z lewej
-                // Dla 8-sąsiedztwa są to:
-                if (x > 0 && labels[x - 1][y] > 0) neighbors.add(labels[x - 1][y]); // Lewy
+                List<Integer> neighbors = new ArrayList<>();
+                if (x > 0 && labels[x - 1][y] > 0) neighbors.add(labels[x - 1][y]);
                 if (y > 0) {
-                    if (labels[x][y - 1] > 0) neighbors.add(labels[x][y - 1]);     // Górny
-                    if (x > 0 && labels[x - 1][y - 1] > 0) neighbors.add(labels[x - 1][y - 1]); // Górny-lewy
-                    if (x < width - 1 && labels[x + 1][y - 1] > 0) neighbors.add(labels[x + 1][y - 1]); // Górny-prawy
+                    if (labels[x][y - 1] > 0) neighbors.add(labels[x][y - 1]);
+                    if (x > 0 && labels[x - 1][y - 1] > 0) neighbors.add(labels[x - 1][y - 1]);
+                    if (x < width - 1 && labels[x + 1][y - 1] > 0) neighbors.add(labels[x + 1][y - 1]);
                 }
 
                 if (neighbors.isEmpty()) {
-                    // Brak sąsiadów - tworzymy nową etykietę
                     int newLabel = neighbourEquivalenceTable.size();
                     neighbourEquivalenceTable.add(newLabel);
                     labels[x][y] = newLabel;
                 } else {
-                    // Sąsiedzi istnieją - Bierzemy najmniejszą etykiete spośród nich (najstarszy)
                     int minLabel = Integer.MAX_VALUE;
-                    for (int l : neighbors) {
-                        if (l < minLabel) minLabel = l;
-                    }
+                    for (int l : neighbors) if (l < minLabel) minLabel = l;
                     labels[x][y] = minLabel;
-
-                    // ZAPISYWANIE KONFLIKTÓW
-                    // Jeśli sąsiedzi mają różne etykiety, łączymy je w tabeli
-                    for (int l : neighbors) {
-                        if (l != minLabel) {
-                            union(minLabel, l);
-                        }
-                    }
+                    for (int l : neighbors) if (l != minLabel) union(minLabel, l);
                 }
             }
         }
 
-        // =========================================================================
-        // ROZWIĄZYWANIE KONFLIKTÓW (Label Equivalence Resolution)
-        // StaraEtykieta -> OstatecznaEtykieta
-        // =========================================================================
+        // ROZWIĄZYWANIE KONFLIKTÓW
         int maxLabel = neighbourEquivalenceTable.size();
         int[] finalLabelMapping = new int[maxLabel];
+        for (int i = 1; i < maxLabel; i++) finalLabelMapping[i] = find(i);
 
-        for (int i = 1; i < maxLabel; i++) {
-            finalLabelMapping[i] = find(i);
-        }
-
-        // =========================================================================
-        // DRUGIE PRZEJŚCIE
-        // Aktualizacja etykiet na obrazie
-        // =========================================================================
-
-        // Grupujemy pixele w bloby/obiekty
         Map<Integer, List<Point>> groupedPixels = new HashMap<>();
-
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int currentLabel = labels[x][y];
-                if (currentLabel > 0) {
-
-                    int resolvedLabel = finalLabelMapping[currentLabel]; // Podmieniamy etykietę
-                    labels[x][y] = resolvedLabel;
-
-                    groupedPixels
-                            .computeIfAbsent(resolvedLabel, k -> new ArrayList<>())
-                            .add(new Point(x, y));
+                int lbl = labels[x][y];
+                if (lbl > 0) {
+                    int resolved = finalLabelMapping[lbl];
+                    groupedPixels.computeIfAbsent(resolved, k -> new ArrayList<>()).add(new Point(x, y));
                 }
             }
         }
 
-        // =========================================================================
-        // OBLICZENIA STATYSTYCZNE
-        // Średnia i Odchylenie Standardowe
-        // =========================================================================
-        List<DetectedObject> results = new ArrayList<>();
+        List<DetectedObject> rawResults = new ArrayList<>();
 
+        // OBLICZENIA SRODKA
         for (List<Point> pixels : groupedPixels.values()) {
-            if (pixels.size() < 20) continue;
+            if (pixels.size() < 20) continue; // Filtr szumu
 
-            // Średnia arytmetyczna (mu)
-            double sumX = 0, sumY = 0;
-            int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
-            int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
+            double totalMass = 0;       // Suma jasności
+            double weightedSumX = 0;    // Suma X * jasność
+            double weightedSumY = 0;    // Suma Y * jasność
+            double sumSqX = 0, sumSqY = 0;
 
+            //ŚRODEK CIĘŻKOŚCI
             for (Point p : pixels) {
-                sumX += p.x;
-                sumY += p.y;
+                // Pobieramy jasność z surowego obrazu (0-255)
+                int brightness = rawMap.getPixel(p.x, p.y);
+
+                if (brightness < 1) brightness = 1;
+
+                totalMass += brightness;
+                weightedSumX += p.x * brightness;
+                weightedSumY += p.y * brightness;
             }
 
-            double meanX = sumX / pixels.size();
-            double meanY = sumY / pixels.size();
+            double meanX = weightedSumX / totalMass;
+            double meanY = weightedSumY / totalMass;
 
-            // B. Odchylenie standardowe (sigma)
-            double sumSqX = 0, sumSqY = 0;
+            // Odchylenie standardowe
             for (Point p : pixels) {
                 sumSqX += Math.pow(p.x - meanX, 2);
                 sumSqY += Math.pow(p.y - meanY, 2);
@@ -129,29 +94,67 @@ public class CCL{
             double stdDevX = Math.sqrt(sumSqX / pixels.size());
             double stdDevY = Math.sqrt(sumSqY / pixels.size());
 
-            results.add(new DetectedObject(meanX, meanY, stdDevX, stdDevY, pixels.size(), pixels));
+            rawResults.add(new DetectedObject(meanX, meanY, stdDevX, stdDevY, pixels));
         }
 
-        return results;
+        // Jeśli jakieś bloby "wyleciały" z siebie (są bardzo blisko), sklejamy je z powrotem.
+        return mergeCloseBlobs(rawResults);
     }
 
-    // Znajdź korzeń
+    // Sklejanie rozerwanych obiektów
+    private static List<DetectedObject> mergeCloseBlobs(List<DetectedObject> blobs) {
+        if (blobs.isEmpty()) return blobs;
+        List<DetectedObject> merged = new ArrayList<>(blobs);
+        boolean change = true;
+
+        while (change) {
+            change = false;
+            for (int i = 0; i < merged.size(); i++) {
+                for (int j = i + 1; j < merged.size(); j++) {
+                    DetectedObject b1 = merged.get(i);
+                    DetectedObject b2 = merged.get(j);
+
+                    // Liczymy dystans między środkami
+                    double dist = Math.sqrt(Math.pow(b1.getX() - b2.getX(), 2) + Math.pow(b1.getY() - b2.getY(), 2));
+
+                    double threshold = Math.max(b1.stdDevX, b1.stdDevY) + Math.max(b2.stdDevX, b2.stdDevY) + 10;
+
+                    if (dist < threshold) {
+                        double totalPix = b1.getPixels().size() + b2.getPixels().size();
+                        double newX = (b1.getX() * b1.getPixels().size() + b2.getX() * b2.getPixels().size()) / totalPix;
+                        double newY = (b1.getY() * b1.getPixels().size() + b2.getY() * b2.getPixels().size()) / totalPix;
+
+                        b1.setX(newX);
+                        b1.setY(newY);
+
+
+                        b1.stdDevX = Math.max(b1.stdDevX, b2.stdDevX);
+                        b1.stdDevY = Math.max(b1.stdDevY, b2.stdDevY);
+
+                        merged.remove(j);
+                        change = true;
+                        break;
+                    }
+                }
+                if (change) break;
+            }
+        }
+        return merged;
+    }
+
     private static int find(int i) {
-        if (neighbourEquivalenceTable.get(i) != i) { // Jeśli element nie wskazuje na samego siebie, to znaczy, że nie jest korzeniem
-            neighbourEquivalenceTable.set(i, find(neighbourEquivalenceTable.get(i))); // Rekurencyjne szukanie korzenia + przypisanie go bezpośrednio jako nowego rodzica 'i'.
+        if (neighbourEquivalenceTable.get(i) != i) {
+            neighbourEquivalenceTable.set(i, find(neighbourEquivalenceTable.get(i)));
         }
         return neighbourEquivalenceTable.get(i);
     }
 
-    // Połącz dwa zbiory (zapisz konflikt)
     private static void union(int i, int j) {
         int rootI = find(i);
         int rootJ = find(j);
         if (rootI != rootJ) {
-            // Mniejszy staje się rodzicem większego
             if (rootI < rootJ) neighbourEquivalenceTable.set(rootJ, rootI);
             else neighbourEquivalenceTable.set(rootI, rootJ);
         }
     }
-
 }
