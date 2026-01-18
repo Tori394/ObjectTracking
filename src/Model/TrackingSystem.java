@@ -3,6 +3,7 @@ package Model;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Collections;
 
 public class TrackingSystem {
     private List<Track> tracks = new ArrayList<>();
@@ -21,10 +22,10 @@ public class TrackingSystem {
 
     // GŁÓWNA METODA AKTUALIZACJI
     public void update(List<DetectedObject> measurements) {
-        // 1. Przewiduj (Wszystkie obiekty przesuwają się zgodnie z prędkością)
+        // 1. Przewiduj
         for (Track t : tracks) t.predict();
 
-        // 2. Drzewo asocjacji
+        // 2. Drzewo asocjacji (Znajdź najlepszy plan)
         Hypothesis bestHypothesis = solveAssociationTree(0, tracks, new ArrayList<>(measurements));
 
         List<DetectedObject> assignedBlobs = new ArrayList<>();
@@ -32,45 +33,29 @@ public class TrackingSystem {
         // 3. Zastosuj hipotezę
         if (bestHypothesis != null) {
 
-            // Obsłuż te, które znalazły pary
             for (Pair p : bestHypothesis.assignments) {
                 if (p.blob != null) {
-                    p.track.update(p.blob);
-                    measurements.remove(p.blob);
-                    assignedBlobs.add(p.blob); // Zapamiętujemy, że blob zajęty
-                }
-            }
 
-            // Obsłuż te, które NIE znalazły pary
-            for (Pair p : bestHypothesis.assignments) {
-                if (p.blob == null) {
+                    // Pobieramy ostatnią widoczną pozycję z historii
+                    double visualDist = getVisualDist(p);
 
-                    // SPRAWDZAMY CZY ZŁĄCZENIE
-                    boolean isOccluded = false;
-
-                    // Sprawdzamy dystans do wszystkich blobów, które zostały już zajęte przez inne obiekty
-                    for (DetectedObject busyBlob : assignedBlobs) {
-                        double dist = Math.sqrt(Math.pow(p.track.getX() - busyBlob.getX(), 2) +
-                                Math.pow(p.track.getY() - busyBlob.getY(), 2));
-
-                        // Siedzi w środku innego bloba (złączyły się)
-                        if (dist < 60.0) {
-                            isOccluded = true;
-                            break;
-                        }
+                    // LIMIT
+                    if (visualDist > 150) {
+                        p.track.addMissingFrames(); // Odrzuć (Miss)
+                    }
+                    else {
+                        // Jest OK - aktualizujemy
+                        p.track.update(p.blob);
+                        measurements.remove(p.blob);
+                        assignedBlobs.add(p.blob);
                     }
 
-                    if (isOccluded) {
-                        // JEST ZŁĄCZONY?
-                        p.track.setMissingFrames(0);
-                    } else {
-                        // FAKTYCZNIE ZGUBIONY (Nie ma go ani samego, ani w grupie)
-                        p.track.addMissingFrames();
-                    }
+                } else {
+                    // Blob jest null, więc od razu sprawdzamy okluzję
+                    checkOcclusionOrMiss(p.track, assignedBlobs);
                 }
             }
         } else {
-            // Awaria systemu - wszyscy zgubieni
             for(Track t : tracks) t.addMissingFrames();
         }
 
@@ -79,13 +64,38 @@ public class TrackingSystem {
         while (it.hasNext()) {
             Track t = it.next();
 
-            // Jeśli obiekt zaginął
             if (t.getMissingFrames() > 30) {
 
-                boolean isStable = t.getHistory().size() >= 50;
+                boolean isStable = t.getHistory().size() >= 20;
 
-                if (isStable) {
+                // Bierzemy ostatni punkt, w którym radar faktycznie widział obiekt.
+                double realX = 0;
+                double realY = 0;
+
+                if (!t.getHistory().isEmpty()) {
+                    DetectedObject lastSeen = t.getHistory().get(t.getHistory().size() - 1);
+                    realX = lastSeen.getX();
+                    realY = lastSeen.getY();
+                } else {
+                    realX = t.getX();
+                    realY = t.getY();
+                }
+
+                int width = 800;
+                int height = 600;
+                int margin = 80;
+
+                boolean leftEdge   = realX < margin;
+                boolean rightEdge  = realX > (width - margin);
+                boolean topEdge    = realY < margin;
+                boolean bottomEdge = realY > (height - margin);
+
+                boolean atBorder = leftEdge || rightEdge || topEdge || bottomEdge;
+
+                if (isStable && atBorder) {
                     saveTrackToFile(t);
+                } else {
+                    // if(isStable) System.out.println("Odrzucono środek: " + (int)realX + ", " + (int)realY);
                 }
 
                 it.remove();
@@ -95,6 +105,42 @@ public class TrackingSystem {
         // Tworzenie nowych
         for (DetectedObject m : measurements) {
             tracks.add(new Track(m, nextId++));
+        }
+    }
+
+    private static double getVisualDist(Pair p) {
+        DetectedObject lastVisible = null;
+        if (!p.track.getHistory().isEmpty()) {
+            lastVisible = p.track.getHistory().get(p.track.getHistory().size() - 1);
+        }
+
+        // 2. Liczymy "skok wizualny" (od ostatniej kropki na ekranie do nowej)
+        double visualDist = 0;
+        if (lastVisible != null) {
+            visualDist = Math.sqrt(Math.pow(lastVisible.getX() - p.blob.getX(), 2) +
+                    Math.pow(lastVisible.getY() - p.blob.getY(), 2));
+        } else {
+            // Jeśli brak historii (nowy obiekt), bierzemy dystans matematyczny
+            visualDist = Math.sqrt(Math.pow(p.track.getX() - p.blob.getX(), 2) +
+                    Math.pow(p.track.getY() - p.blob.getY(), 2));
+        }
+        return visualDist;
+    }
+
+    private void checkOcclusionOrMiss(Track t, List<DetectedObject> assignedBlobs) {
+        boolean isOccluded = false;
+        for (DetectedObject busyBlob : assignedBlobs) {
+            double dist = Math.sqrt(Math.pow(t.getX() - busyBlob.getX(), 2) +
+                    Math.pow(t.getY() - busyBlob.getY(), 2));
+            if (dist < 80.0) {
+                isOccluded = true;
+                break;
+            }
+        }
+        if (isOccluded) {
+            t.setMissingFrames(0);
+        } else {
+            t.addMissingFrames();
         }
     }
 
@@ -129,52 +175,82 @@ public class TrackingSystem {
                 angleDeg
         );
 
-        System.out.println("Zapisano trajektorię ID: " + t.getId());
+        //System.out.println("Zapisano trajektorię ID: " + t.getId());
         System.out.println(logEntry);
     }
 
     // REKURENCJA
+    // ZOPTYMALIZOWANA REKURENCJA (DRZEWO ASOCJACJI Z AGRESYWNYM PRZYCINANIEM)
     private Hypothesis solveAssociationTree(int trackIndex, List<Track> currentTracks, List<DetectedObject> availableBlobs) {
+        // Warunek stopu
         if (trackIndex >= currentTracks.size()) return new Hypothesis();
 
         Track currentTrack = currentTracks.get(trackIndex);
         Hypothesis bestLocalHypothesis = null;
         double maxProbability = -Double.MAX_VALUE;
 
-        // Połącz z blobem
+        // ZNAJDŹ KANDYDATÓW
+        List<Candidate> candidates = new ArrayList<>();
+
         for (int i = 0; i < availableBlobs.size(); i++) {
             DetectedObject blob = availableBlobs.get(i);
-
             double dist = Math.sqrt(Math.pow(currentTrack.getX() - blob.getX(), 2) + Math.pow(currentTrack.getY() - blob.getY(), 2));
 
-            if (dist > 80) continue;
+            if (dist > 60) continue;
 
             double score = 1000.0 / (1.0 + dist);
+            candidates.add(new Candidate(blob, i, score));
+        }
+
+        Collections.sort(candidates);
+
+        // OPTYMALIZACJA
+        int branchLimit = 3; // Domyślnie sprawdzamy 3 opcje
+        boolean forceMatch = false; //Czy wymuszamy dopasowanie
+
+        if (!candidates.isEmpty()) {
+            double bestScore = candidates.get(0).score;
+            // Jeśli mamy kandydata bliżej niż 30px
+            if (bestScore > 30.0) {
+                branchLimit = 1;
+                forceMatch = true;
+            }
+        }
+
+        int count = 0;
+
+        // REKURENCJA PO KANDYDATACH
+        for (Candidate cand : candidates) {
+            if (count >= branchLimit) break;
+            count++;
+
             List<DetectedObject> remaining = new ArrayList<>(availableBlobs);
-            remaining.remove(i);
+            remaining.remove(cand.blob);
 
             Hypothesis child = solveAssociationTree(trackIndex + 1, currentTracks, remaining);
 
             if (child != null) {
-                double total = score + child.totalScore;
+                double total = cand.score + child.totalScore;
                 if (total > maxProbability) {
                     maxProbability = total;
                     bestLocalHypothesis = child;
-                    bestLocalHypothesis.assignments.add(0, new Pair(currentTrack, blob));
+                    bestLocalHypothesis.assignments.add(0, new Pair(currentTrack, cand.blob));
                     bestLocalHypothesis.totalScore = total;
                 }
             }
         }
 
-        // Miss
-        Hypothesis missHypothesis = solveAssociationTree(trackIndex + 1, currentTracks, new ArrayList<>(availableBlobs));
-        double totalMiss = 5.0 + (missHypothesis != null ? missHypothesis.totalScore : 0);
+        // REKURENCJA (OPCJA MISS - ZGUBIENIE)
+        if (!forceMatch) {
+            Hypothesis missHypothesis = solveAssociationTree(trackIndex + 1, currentTracks, new ArrayList<>(availableBlobs));
+            double totalMiss = 5.0 + (missHypothesis != null ? missHypothesis.totalScore : 0);
 
-        if (bestLocalHypothesis == null || totalMiss > maxProbability) {
-            bestLocalHypothesis = missHypothesis;
-            if (bestLocalHypothesis == null) bestLocalHypothesis = new Hypothesis();
-            bestLocalHypothesis.assignments.add(0, new Pair(currentTrack, null));
-            bestLocalHypothesis.totalScore = totalMiss;
+            if (bestLocalHypothesis == null || totalMiss > maxProbability) {
+                bestLocalHypothesis = missHypothesis;
+                if (bestLocalHypothesis == null) bestLocalHypothesis = new Hypothesis();
+                bestLocalHypothesis.assignments.add(0, new Pair(currentTrack, null));
+                bestLocalHypothesis.totalScore = totalMiss;
+            }
         }
 
         return bestLocalHypothesis;
@@ -198,5 +274,23 @@ public class TrackingSystem {
         if (angle >= -67.5 && angle < -22.5)   return "PRAWO-GÓRA";
 
         return "NIEZNANY";
+    }
+
+    private static class Candidate implements Comparable<Candidate> {
+        DetectedObject blob;
+        int originalIndex;
+        double score;
+
+        public Candidate(DetectedObject blob, int idx, double score) {
+            this.blob = blob;
+            this.originalIndex = idx;
+            this.score = score;
+        }
+
+        @Override
+        public int compareTo(Candidate o) {
+            // Sortujemy malejąco po score
+            return Double.compare(o.score, this.score);
+        }
     }
 }

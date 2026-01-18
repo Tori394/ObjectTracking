@@ -70,7 +70,7 @@ public class TrackingView {
 
             radarView.setSelected(true);
 
-            for (int i = 0; i < 15; i++) {
+            for (int i = 0; i < 50; i++) {
 
                 double x = rand.nextInt(W - 100) + 70;
                 double y = rand.nextInt(H - 100) + 70;
@@ -78,7 +78,7 @@ public class TrackingView {
                 double xv = (rand.nextDouble() * 6) - 3;
                 double yv = (rand.nextDouble() * 6) - 3;
 
-                RadarBlob blob = new RadarBlob(x, y, xv, yv, rand.nextInt(6)+4);
+                RadarBlob blob = new RadarBlob(x, y, xv, yv, rand.nextInt(8)+4);
                 objects.add(blob);
             }
 
@@ -97,6 +97,8 @@ public class TrackingView {
                 return;
             }
             if (objects == null || objects.isEmpty()) return;
+
+            System.out.print("\n\n\nStart symulacji\n\n");
 
             simulationTimer = new Timer(50, event -> {
 
